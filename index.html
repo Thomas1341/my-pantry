@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>綠意食光 v6.0</title>
+    <title>綠意食光 v7.0 - 智能進化版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
     <style>
         body { background-color: #FAFAFA; font-family: -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
         .bg-primary { background-color: #E0F79C; }
         .card { border-radius: 24px; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #F0F0F0; }
-        #interactive.viewport { position: relative; width: 100%; height: 200px; border-radius: 20px; overflow: hidden; background: #000; }
+        #interactive.viewport { position: relative; width: 100%; height: 220px; border-radius: 24px; overflow: hidden; background: #000; }
         #interactive.viewport video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .scan-guide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 50%; border: 2px solid #E0F79C; z-index: 10; border-radius: 12px; box-shadow: 0 0 0 4000px rgba(0,0,0,0.4); pointer-events: none; }
         canvas.drawingBuffer { display: none; }
-        .scan-guide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 60%; border: 2px solid #E0F79C; z-index: 10; border-radius: 12px; box-shadow: 0 0 0 4000px rgba(0,0,0,0.4); pointer-events: none; }
     </style>
 </head>
 <body class="pb-32">
@@ -22,7 +22,7 @@
         <div class="flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-black text-gray-800">我的綠意食光</h1>
-                <p class="text-xs text-gray-600 font-medium">資料存放在本地及 iCloud</p>
+                <p id="stats" class="text-xs text-gray-600 font-medium">載入中...</p>
             </div>
             <div class="flex gap-2">
                 <button onclick="exportData()" class="bg-white/50 p-3 rounded-2xl text-xl">📤</button>
@@ -40,120 +40,127 @@
     </div>
 
     <div id="modal" class="fixed inset-0 bg-black/80 hidden z-[60] flex flex-col items-center justify-end">
-        <div class="bg-white w-full max-w-md rounded-t-[40px] p-8 animate-up overflow-y-auto max-h-[90vh]">
+        <div class="bg-white w-full max-w-md rounded-t-[40px] p-8 animate-up overflow-y-auto max-h-[95vh]">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-gray-800">掃描條碼</h2>
+                <h2 class="text-xl font-bold text-gray-800">添加食品</h2>
                 <button onclick="closeModal()" class="text-gray-400 text-3xl">✕</button>
             </div>
 
             <div id="scannerSection" class="space-y-4">
-                <div id="interactive" class="viewport">
-                    <div class="scan-guide"></div>
-                </div>
-                <div class="flex gap-2">
-                    <p id="status" class="flex-1 text-sm text-gray-400 py-2">正在啟動相機...</p>
+                <div id="interactive" class="viewport"><div class="scan-guide"></div></div>
+                <div class="flex gap-2 items-center">
+                    <p id="status" class="flex-1 text-sm text-gray-400 font-medium">等待辨識...</p>
                     <label class="bg-gray-100 px-4 py-2 rounded-xl text-xs font-bold text-gray-600 cursor-pointer">
-                        📸 拍照辨識 (更準)
+                        📸 拍照辨識
                         <input type="file" accept="image/*" capture="camera" class="hidden" onchange="decodeFile(event)">
                     </label>
                 </div>
             </div>
 
             <div class="mt-6 space-y-4">
-                <input type="text" id="foodName" placeholder="產品名稱" class="w-full p-4 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary font-bold">
-                <div class="flex items-center gap-4">
-                    <span class="text-sm text-gray-400 shrink-0">到期日期</span>
-                    <input type="date" id="expiryDate" class="flex-1 p-4 rounded-2xl bg-gray-50 border-none outline-none">
+                <div>
+                    <label class="text-xs text-gray-400 ml-1">產品名稱 (若不正確請手動修改)</label>
+                    <input type="text" id="foodName" placeholder="點擊手動輸入品名" class="w-full p-4 mt-1 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary font-bold text-lg">
                 </div>
-                <button onclick="saveFood()" class="w-full py-4 bg-primary rounded-2xl font-bold shadow-lg text-gray-800 mt-4">確認存入糧倉</button>
+                <div class="flex items-center gap-4">
+                    <span class="text-sm text-gray-500 shrink-0 font-medium">有效日期</span>
+                    <input type="date" id="expiryDate" class="flex-1 p-4 rounded-2xl bg-gray-50 border-none outline-none font-bold">
+                </div>
+                <button onclick="saveFood()" class="w-full py-4 bg-primary rounded-2xl font-bold shadow-lg text-gray-800 mt-4 active:scale-95 transition-transform">確認存入糧倉</button>
             </div>
+            <input type="hidden" id="currentBarcode">
         </div>
     </div>
 
     <script>
         let foods = JSON.parse(localStorage.getItem('myFoods')) || [];
+        let barcodeHistory = JSON.parse(localStorage.getItem('barcodeHistory')) || {};
 
         window.onload = renderList;
 
-        // --- 核心辨識邏輯 ---
         function openScanner() {
             document.getElementById('modal').classList.remove('hidden');
             document.getElementById('foodName').value = "";
+            document.getElementById('currentBarcode').value = "";
             
             Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector('#interactive'),
-                    constraints: { facingMode: "environment" }
-                },
+                inputStream: { name: "Live", type: "LiveStream", target: document.querySelector('#interactive'), constraints: { facingMode: "environment" } },
                 decoder: { readers: ["ean_reader", "ean_8_reader", "code_128_reader"] },
                 locate: true
             }, (err) => {
                 if (err) { document.getElementById('status').innerText = "相機啟動失敗"; return; }
                 Quagga.start();
-                document.getElementById('status').innerText = "自動辨識中...或點擊右側拍照";
+                document.getElementById('status').innerText = "自動辨識中...";
             });
 
             Quagga.onDetected((res) => {
-                if (res.codeResult.code) {
+                const code = res.codeResult.code;
+                if (code) {
                     if (navigator.vibrate) navigator.vibrate(80);
-                    fetchProductName(res.codeResult.code);
+                    handleCodeDetected(code);
                     Quagga.stop();
                 }
             });
         }
 
-        // --- 終極備案：處理拍攝的照片 ---
-        function decodeFile(event) {
-            const file = event.target.files[0];
+        function decodeFile(e) {
+            const file = e.target.files[0];
             if (!file) return;
-            
-            document.getElementById('status').innerText = "照片分析中...";
-            
-            // 使用 Quagga 的靜態解碼功能
+            document.getElementById('status').innerText = "分析照片中...";
             Quagga.decodeSingle({
                 src: URL.createObjectURL(file),
                 decoder: { readers: ["ean_reader", "ean_8_reader", "code_128_reader"] },
                 locate: true
-            }, function(result) {
+            }, (result) => {
                 if (result && result.codeResult) {
-                    fetchProductName(result.codeResult.code);
+                    handleCodeDetected(result.codeResult.code);
                 } else {
-                    document.getElementById('status').innerText = "❌ 無法從照片辨識條碼";
-                    alert("條碼不清晰，請重新拍攝或手動輸入");
+                    document.getElementById('status').innerText = "無法辨識，請手動輸入";
                 }
             });
         }
 
-        async function fetchProductName(code) {
-            document.getElementById('status').innerText = "查詢產品中...";
+        async function handleCodeDetected(code) {
+            document.getElementById('currentBarcode').value = code;
+            
+            // 學習功能：優先檢查歷史紀錄
+            if (barcodeHistory[code]) {
+                document.getElementById('foodName').value = barcodeHistory[code];
+                document.getElementById('status').innerText = "✅ 載入您的個人紀錄";
+                return;
+            }
+
+            document.getElementById('status').innerText = "查詢資料庫中...";
             try {
-                const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_zh`);
+                const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_zh,brands,generic_name_zh`);
                 const data = await res.json();
                 if (data.status === 1) {
-                    const name = data.product.product_name_zh || data.product.product_name || "新產品";
+                    const p = data.product;
+                    // 強化取名邏輯
+                    let name = p.product_name_zh || p.generic_name_zh || p.product_name || (p.brands ? p.brands : "");
                     document.getElementById('foodName').value = name;
-                    document.getElementById('status').innerText = "✅ 辨識成功！";
+                    document.getElementById('status').innerText = name ? "✅ 已自動填入" : "查無名稱，請手動輸入";
                 } else {
-                    document.getElementById('foodName').value = "條碼 " + code;
-                    document.getElementById('status').innerText = "查無資料，請手動命名";
+                    document.getElementById('status').innerText = "新產品！請輸入名稱";
                 }
             } catch (e) {
-                document.getElementById('foodName').value = "條碼 " + code;
+                document.getElementById('status').innerText = "網路連線異常";
             }
-        }
-
-        function closeModal() {
-            Quagga.stop();
-            document.getElementById('modal').classList.add('hidden');
         }
 
         function saveFood() {
             const name = document.getElementById('foodName').value;
             const expiry = document.getElementById('expiryDate').value;
+            const code = document.getElementById('currentBarcode').value;
+
             if (!name || !expiry) return alert("請填寫名稱與日期");
-            
+
+            // 智能學習：記住使用者的修正
+            if (code) {
+                barcodeHistory[code] = name;
+                localStorage.setItem('barcodeHistory', JSON.stringify(barcodeHistory));
+            }
+
             foods.push({ id: Date.now(), name, expiry });
             localStorage.setItem('myFoods', JSON.stringify(foods));
             renderList();
@@ -162,48 +169,63 @@
 
         function renderList() {
             const div = document.getElementById('foodList');
+            document.getElementById('stats').innerText = `目前清單：${foods.length} 樣食品`;
+            
             if (foods.length === 0) {
-                div.innerHTML = '<div class="text-center py-20 text-gray-300 italic">點擊下方按鈕開始記錄 🌿</div>';
+                div.innerHTML = '<div class="text-center py-20 text-gray-300 italic">糧倉空空的，趕快去買東西吧 🌿</div>';
                 return;
             }
+            
             div.innerHTML = [...foods].sort((a,b) => new Date(a.expiry)-new Date(b.expiry)).map(item => {
                 const diff = Math.ceil((new Date(item.expiry) - new Date()) / 86400000);
+                const isUrgent = diff <= 7;
                 return `
-                    <div class="card p-6 flex justify-between items-center border-l-[12px] ${diff <= 7 ? 'border-l-red-300' : 'border-l-[#E0F79C]'}">
+                    <div class="card p-6 flex justify-between items-center border-l-[12px] ${isUrgent ? 'border-l-red-300' : 'border-l-[#E0F79C]'}">
                         <div class="flex-1">
                             <h3 class="font-bold text-gray-800 text-lg">${item.name}</h3>
-                            <p class="text-sm ${diff <= 7 ? 'text-red-500' : 'text-gray-400'} font-medium">到期日期: ${item.expiry} (${diff}天後)</p>
+                            <p class="text-sm ${isUrgent ? 'text-red-500 font-bold' : 'text-gray-400'}">
+                                ${isUrgent ? '⚠️ ' : ''}${item.expiry} (${diff}天後到期)
+                            </p>
                         </div>
-                        <button onclick="deleteFood(${item.id})" class="text-gray-300 hover:text-red-400 p-2 text-xl">✕</button>
+                        <button onclick="deleteFood(${item.id})" class="text-gray-200 hover:text-red-400 p-2 text-xl">✕</button>
                     </div>
                 `;
             }).join('');
         }
 
         function deleteFood(id) {
-            if(confirm('確定移除？')) {
+            if(confirm('確定要從清單移除嗎？')) {
                 foods = foods.filter(f => f.id !== id);
                 localStorage.setItem('myFoods', JSON.stringify(foods));
                 renderList();
             }
         }
 
+        function closeModal() {
+            Quagga.stop();
+            document.getElementById('modal').classList.add('hidden');
+        }
+
         function exportData() {
-            const blob = new Blob([JSON.stringify(foods, null, 2)], {type: 'application/json'});
+            const backup = { foods, barcodeHistory };
+            const blob = new Blob([JSON.stringify(backup, null, 2)], {type: 'application/json'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `綠意食光_${new Date().toISOString().slice(0,10)}.json`;
+            a.download = `綠意食光_備份_${new Date().toISOString().slice(0,10)}.json`;
             a.click();
-            alert("備份檔已生成，請存入 iCloud Drive 以保安全！");
+            alert("備份完成！包含您的食品清單與學會的產品名稱。");
         }
 
         function importData(e) {
             const reader = new FileReader();
             reader.onload = (ev) => {
-                foods = JSON.parse(ev.target.result);
+                const data = JSON.parse(ev.target.result);
+                foods = data.foods || [];
+                barcodeHistory = data.barcodeHistory || {};
                 localStorage.setItem('myFoods', JSON.stringify(foods));
+                localStorage.setItem('barcodeHistory', JSON.stringify(barcodeHistory));
                 renderList();
-                alert("✅ 成功從雲端載入資料");
+                alert("✅ 資料同步成功");
             };
             reader.readAsText(e.target.files[0]);
         }
