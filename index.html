@@ -3,70 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>綠意食光 v7.0 - 智能進化版</title>
+    <title>綠意食光 - 智能家居糧倉</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
     <style>
-        body { background-color: #FAFAFA; font-family: -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
-        .bg-primary { background-color: #E0F79C; }
-        .card { border-radius: 24px; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #F0F0F0; }
-        #interactive.viewport { position: relative; width: 100%; height: 220px; border-radius: 24px; overflow: hidden; background: #000; }
+        :root { --primary: #E0F79C; }
+        body { background-color: #FAFAFA; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .bg-primary { background-color: var(--primary); }
+        .card { border-radius: 24px; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.02); border: 1px solid #F0F0F0; transition: transform 0.2s; }
+        .card:active { transform: scale(0.98); }
+        #interactive.viewport { position: relative; width: 100%; height: 200px; border-radius: 20px; overflow: hidden; background: #000; }
         #interactive.viewport video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-        .scan-guide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 50%; border: 2px solid #E0F79C; z-index: 10; border-radius: 12px; box-shadow: 0 0 0 4000px rgba(0,0,0,0.4); pointer-events: none; }
+        .scan-guide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 75%; height: 50%; border: 2px solid var(--primary); z-index: 10; border-radius: 12px; box-shadow: 0 0 0 4000px rgba(0,0,0,0.5); pointer-events: none; }
         canvas.drawingBuffer { display: none; }
+        select { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; }
     </style>
 </head>
 <body class="pb-32">
 
-    <header class="p-8 bg-primary rounded-b-[45px] mb-6 shadow-sm">
-        <div class="flex justify-between items-center">
+    <header class="p-8 bg-primary rounded-b-[50px] shadow-sm mb-4">
+        <div class="flex justify-between items-start">
             <div>
-                <h1 class="text-2xl font-black text-gray-800">我的綠意食光</h1>
-                <p id="stats" class="text-xs text-gray-600 font-medium">載入中...</p>
+                <h1 class="text-2xl font-black text-gray-800 tracking-tight">綠意食光</h1>
+                <p id="stats" class="text-xs text-gray-600 font-medium mt-1">智能食物管理系統</p>
             </div>
             <div class="flex gap-2">
-                <button onclick="exportData()" class="bg-white/50 p-3 rounded-2xl text-xl">📤</button>
-                <label class="bg-white/50 p-3 rounded-2xl text-xl cursor-pointer">📥<input type="file" class="hidden" onchange="importData(event)"></label>
+                <button onclick="exportData()" title="備份至 iCloud" class="bg-white/60 p-3 rounded-2xl shadow-sm text-xl active:bg-white">📤</button>
+                <label class="bg-white/60 p-3 rounded-2xl shadow-sm text-xl cursor-pointer active:bg-white">
+                    📥<input type="file" class="hidden" onchange="importData(event)">
+                </label>
             </div>
         </div>
     </header>
 
+    <div class="px-6 mb-6">
+        <div class="bg-white rounded-2xl p-2 shadow-sm flex items-center border border-gray-100">
+            <span class="text-xs font-bold text-gray-400 px-3 shrink-0">排序方式</span>
+            <select id="sortMode" onchange="renderList()" class="w-full bg-transparent py-2 pl-2 pr-8 text-sm font-bold text-gray-700 outline-none">
+                <option value="expiryNear">到期日：由近到遠 (預設)</option>
+                <option value="expiryFar">到期日：由遠到近</option>
+                <option value="stroke">名稱：由少至多 (筆劃順序)</option>
+            </select>
+        </div>
+    </div>
+
     <div id="foodList" class="px-6 space-y-4"></div>
 
     <div class="fixed bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl flex justify-center border-t border-gray-100 z-50">
-        <button onclick="openScanner()" class="bg-primary w-full max-w-xs py-4 rounded-[2rem] font-bold shadow-xl active:scale-95 transition-all text-gray-800 text-lg">
-            🔍 記錄新食品
+        <button onclick="openScanner()" class="bg-primary w-full max-w-xs py-4 rounded-[2rem] font-bold shadow-xl text-gray-800 text-lg active:scale-95 transition-transform">
+            🔍 掃描新食品
         </button>
     </div>
 
     <div id="modal" class="fixed inset-0 bg-black/80 hidden z-[60] flex flex-col items-center justify-end">
         <div class="bg-white w-full max-w-md rounded-t-[40px] p-8 animate-up overflow-y-auto max-h-[95vh]">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-gray-800">添加食品</h2>
-                <button onclick="closeModal()" class="text-gray-400 text-3xl">✕</button>
+                <h2 class="text-xl font-bold text-gray-800">新增食品紀錄</h2>
+                <button onclick="closeModal()" class="text-gray-400 text-3xl p-2">✕</button>
             </div>
 
             <div id="scannerSection" class="space-y-4">
                 <div id="interactive" class="viewport"><div class="scan-guide"></div></div>
                 <div class="flex gap-2 items-center">
-                    <p id="status" class="flex-1 text-sm text-gray-400 font-medium">等待辨識...</p>
-                    <label class="bg-gray-100 px-4 py-2 rounded-xl text-xs font-bold text-gray-600 cursor-pointer">
+                    <p id="status" class="flex-1 text-sm text-gray-400 font-medium">請將條碼置於框內...</p>
+                    <label class="bg-gray-100 px-4 py-2 rounded-xl text-xs font-bold text-gray-600 cursor-pointer active:bg-gray-200">
                         📸 拍照辨識
                         <input type="file" accept="image/*" capture="camera" class="hidden" onchange="decodeFile(event)">
                     </label>
                 </div>
             </div>
 
-            <div class="mt-6 space-y-4">
+            <div class="mt-6 space-y-5">
                 <div>
-                    <label class="text-xs text-gray-400 ml-1">產品名稱 (若不正確請手動修改)</label>
-                    <input type="text" id="foodName" placeholder="點擊手動輸入品名" class="w-full p-4 mt-1 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary font-bold text-lg">
+                    <label class="text-[10px] uppercase tracking-wider text-gray-400 ml-1 font-bold">食品名稱 (可手動修改)</label>
+                    <input type="text" id="foodName" placeholder="掃描後自動輸入..." class="w-full p-4 mt-1 rounded-2xl bg-gray-50 border-none outline-none focus:ring-2 focus:ring-primary font-bold text-lg">
                 </div>
-                <div class="flex items-center gap-4">
-                    <span class="text-sm text-gray-500 shrink-0 font-medium">有效日期</span>
-                    <input type="date" id="expiryDate" class="flex-1 p-4 rounded-2xl bg-gray-50 border-none outline-none font-bold">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] uppercase tracking-wider text-gray-400 ml-1 font-bold">數量</label>
+                        <select id="foodQty" class="w-full p-4 mt-1 rounded-2xl bg-gray-50 border-none outline-none font-bold">
+                            <script>for(let i=1;i<=20;i++) document.write(`<option value="${i}">${i} 份</option>`)</script>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] uppercase tracking-wider text-gray-400 ml-1 font-bold">過期日期</label>
+                        <input type="date" id="expiryDate" class="w-full p-4 mt-1 rounded-2xl bg-gray-50 border-none outline-none font-bold">
+                    </div>
                 </div>
-                <button onclick="saveFood()" class="w-full py-4 bg-primary rounded-2xl font-bold shadow-lg text-gray-800 mt-4 active:scale-95 transition-transform">確認存入糧倉</button>
+
+                <button onclick="saveFood()" class="w-full py-5 bg-primary rounded-3xl font-black shadow-lg text-gray-800 mt-4 active:scale-95 transition-transform uppercase tracking-widest">確認加入清單</button>
             </div>
             <input type="hidden" id="currentBarcode">
         </div>
@@ -76,8 +102,12 @@
         let foods = JSON.parse(localStorage.getItem('myFoods')) || [];
         let barcodeHistory = JSON.parse(localStorage.getItem('barcodeHistory')) || {};
 
-        window.onload = renderList;
+        window.onload = () => {
+            renderList();
+            checkUrgentItems();
+        };
 
+        // --- 核心功能：掃描與辨識 ---
         function openScanner() {
             document.getElementById('modal').classList.remove('hidden');
             document.getElementById('foodName').value = "";
@@ -94,10 +124,9 @@
             });
 
             Quagga.onDetected((res) => {
-                const code = res.codeResult.code;
-                if (code) {
+                if (res.codeResult.code) {
                     if (navigator.vibrate) navigator.vibrate(80);
-                    handleCodeDetected(code);
+                    handleCodeDetected(res.codeResult.code);
                     Quagga.stop();
                 }
             });
@@ -106,7 +135,7 @@
         function decodeFile(e) {
             const file = e.target.files[0];
             if (!file) return;
-            document.getElementById('status').innerText = "分析照片中...";
+            document.getElementById('status').innerText = "深度分析照片中...";
             Quagga.decodeSingle({
                 src: URL.createObjectURL(file),
                 decoder: { readers: ["ean_reader", "ean_8_reader", "code_128_reader"] },
@@ -115,7 +144,7 @@
                 if (result && result.codeResult) {
                     handleCodeDetected(result.codeResult.code);
                 } else {
-                    document.getElementById('status').innerText = "無法辨識，請手動輸入";
+                    document.getElementById('status').innerText = "辨識失敗，請手動輸入";
                 }
             });
         }
@@ -123,45 +152,48 @@
         async function handleCodeDetected(code) {
             document.getElementById('currentBarcode').value = code;
             
-            // 學習功能：優先檢查歷史紀錄
+            // 7. 學習功能：優先讀取自定義紀錄
             if (barcodeHistory[code]) {
                 document.getElementById('foodName').value = barcodeHistory[code];
-                document.getElementById('status').innerText = "✅ 載入您的個人紀錄";
+                document.getElementById('status').innerText = "✅ 已載入您的自定義品名";
                 return;
             }
 
-            document.getElementById('status').innerText = "查詢資料庫中...";
+            document.getElementById('status').innerText = "正從雲端搜尋食品資訊...";
             try {
-                const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_zh,brands,generic_name_zh`);
+                // 6. 強化 API 欄位搜尋：包含中文名、品牌、通用名
+                const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_zh,brands,generic_name_zh,generic_name`);
                 const data = await res.json();
+                
                 if (data.status === 1) {
                     const p = data.product;
-                    // 強化取名邏輯
-                    let name = p.product_name_zh || p.generic_name_zh || p.product_name || (p.brands ? p.brands : "");
+                    let name = p.product_name_zh || p.generic_name_zh || p.product_name || p.generic_name || (p.brands ? p.brands : "");
                     document.getElementById('foodName').value = name;
-                    document.getElementById('status').innerText = name ? "✅ 已自動填入" : "查無名稱，請手動輸入";
+                    document.getElementById('status').innerText = "✅ 搜尋完成";
                 } else {
-                    document.getElementById('status').innerText = "新產品！請輸入名稱";
+                    document.getElementById('status').innerText = "新條碼！請手動命名";
                 }
             } catch (e) {
-                document.getElementById('status').innerText = "網路連線異常";
+                document.getElementById('status').innerText = "連線不穩，請手動輸入";
             }
         }
 
+        // --- 核心功能：存儲與列表渲染 ---
         function saveFood() {
             const name = document.getElementById('foodName').value;
+            const qty = document.getElementById('foodQty').value;
             const expiry = document.getElementById('expiryDate').value;
             const code = document.getElementById('currentBarcode').value;
 
-            if (!name || !expiry) return alert("請填寫名稱與日期");
+            if (!name || !expiry) return alert("請填寫食品名稱及到期日期");
 
-            // 智能學習：記住使用者的修正
+            // 7. 學習功能：記住手動修正
             if (code) {
                 barcodeHistory[code] = name;
                 localStorage.setItem('barcodeHistory', JSON.stringify(barcodeHistory));
             }
 
-            foods.push({ id: Date.now(), name, expiry });
+            foods.push({ id: Date.now(), name, qty, expiry });
             localStorage.setItem('myFoods', JSON.stringify(foods));
             renderList();
             closeModal();
@@ -169,32 +201,68 @@
 
         function renderList() {
             const div = document.getElementById('foodList');
-            document.getElementById('stats').innerText = `目前清單：${foods.length} 樣食品`;
+            const mode = document.getElementById('sortMode').value;
             
-            if (foods.length === 0) {
-                div.innerHTML = '<div class="text-center py-20 text-gray-300 italic">糧倉空空的，趕快去買東西吧 🌿</div>';
+            // 排序邏輯
+            let sortedFoods = [...foods].sort((a, b) => {
+                if (mode === 'expiryNear') return new Date(a.expiry) - new Date(b.expiry);
+                if (mode === 'expiryFar') return new Date(b.expiry) - new Date(a.expiry);
+                if (mode === 'stroke') return a.name.localeCompare(b.name, 'zh-Hant'); // 接近筆劃/字母排序
+            });
+
+            // 5. 兩星期內到期置頂
+            const today = new Date();
+            const twoWeeksLater = new Date();
+            twoWeeksLater.setDate(today.getDate() + 14);
+
+            const urgentItems = sortedFoods.filter(i => new Date(i.expiry) <= twoWeeksLater);
+            const normalItems = sortedFoods.filter(i => new Date(i.expiry) > twoWeeksLater);
+            
+            const finalDisplay = [...urgentItems, ...normalItems];
+
+            document.getElementById('stats').innerText = `共計 ${foods.length} 樣存貨 | ${urgentItems.length} 樣即將到期`;
+            
+            if (finalDisplay.length === 0) {
+                div.innerHTML = '<div class="text-center py-20 text-gray-300 italic">目前沒有紀錄食品 🌿</div>';
                 return;
             }
             
-            div.innerHTML = [...foods].sort((a,b) => new Date(a.expiry)-new Date(b.expiry)).map(item => {
-                const diff = Math.ceil((new Date(item.expiry) - new Date()) / 86400000);
-                const isUrgent = diff <= 7;
+            div.innerHTML = finalDisplay.map(item => {
+                const diff = Math.ceil((new Date(item.expiry) - today) / 86400000);
+                const isUrgent = diff <= 14;
                 return `
-                    <div class="card p-6 flex justify-between items-center border-l-[12px] ${isUrgent ? 'border-l-red-300' : 'border-l-[#E0F79C]'}">
+                    <div class="card p-6 flex justify-between items-center border-l-[10px] ${diff <= 7 ? 'border-l-red-400' : (isUrgent ? 'border-l-yellow-300' : 'border-l-[#E0F79C]')}">
                         <div class="flex-1">
-                            <h3 class="font-bold text-gray-800 text-lg">${item.name}</h3>
-                            <p class="text-sm ${isUrgent ? 'text-red-500 font-bold' : 'text-gray-400'}">
-                                ${isUrgent ? '⚠️ ' : ''}${item.expiry} (${diff}天後到期)
+                            <div class="flex items-center gap-2">
+                                <h3 class="font-bold text-gray-800 text-lg">${item.name}</h3>
+                                <span class="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-bold">x${item.qty}</span>
+                            </div>
+                            <p class="text-sm ${isUrgent ? 'text-red-500 font-bold' : 'text-gray-400'} mt-1">
+                                ${isUrgent ? '⚠️ ' : ''}到期日：${item.expiry} (${diff} 天後)
                             </p>
                         </div>
-                        <button onclick="deleteFood(${item.id})" class="text-gray-200 hover:text-red-400 p-2 text-xl">✕</button>
+                        <button onclick="deleteFood(${item.id})" class="text-gray-200 hover:text-red-400 p-2 text-2xl transition-colors">✕</button>
                     </div>
                 `;
             }).join('');
         }
 
+        // 5. 到期提醒彈窗
+        function checkUrgentItems() {
+            const today = new Date();
+            const twoWeeksLater = new Date();
+            twoWeeksLater.setDate(today.getDate() + 14);
+            const urgentCount = foods.filter(i => new Date(i.expiry) <= twoWeeksLater).length;
+            
+            if (urgentCount > 0) {
+                setTimeout(() => {
+                    alert(`🌿 綠意食光提醒您：\n清單中有 ${urgentCount} 項食品將在 2 星期內到期，請儘速食用！`);
+                }, 500);
+            }
+        }
+
         function deleteFood(id) {
-            if(confirm('確定要從清單移除嗎？')) {
+            if(confirm('確定要移除此項食品？')) {
                 foods = foods.filter(f => f.id !== id);
                 localStorage.setItem('myFoods', JSON.stringify(foods));
                 renderList();
@@ -206,26 +274,30 @@
             document.getElementById('modal').classList.add('hidden');
         }
 
+        // 8. 備份功能 (iCloud 導向)
         function exportData() {
-            const backup = { foods, barcodeHistory };
+            const backup = { foods, barcodeHistory, backupDate: new Date().toISOString() };
             const blob = new Blob([JSON.stringify(backup, null, 2)], {type: 'application/json'});
             const a = document.createElement('a');
+            const d = new Date();
             a.href = URL.createObjectURL(blob);
-            a.download = `綠意食光_備份_${new Date().toISOString().slice(0,10)}.json`;
+            a.download = `綠意食光_備份_${d.getMonth()+1}${d.getDate()}.json`;
             a.click();
-            alert("備份完成！包含您的食品清單與學會的產品名稱。");
+            alert("✅ 備份檔已產生！\n請選擇「儲存至檔案」並選取「iCloud Drive」以確保安全。");
         }
 
         function importData(e) {
             const reader = new FileReader();
             reader.onload = (ev) => {
-                const data = JSON.parse(ev.target.result);
-                foods = data.foods || [];
-                barcodeHistory = data.barcodeHistory || {};
-                localStorage.setItem('myFoods', JSON.stringify(foods));
-                localStorage.setItem('barcodeHistory', JSON.stringify(barcodeHistory));
-                renderList();
-                alert("✅ 資料同步成功");
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    foods = data.foods || [];
+                    barcodeHistory = data.barcodeHistory || {};
+                    localStorage.setItem('myFoods', JSON.stringify(foods));
+                    localStorage.setItem('barcodeHistory', JSON.stringify(barcodeHistory));
+                    renderList();
+                    alert("🎉 資料已成功回復！");
+                } catch(e) { alert("讀取失敗，請確認檔案格式。"); }
             };
             reader.readAsText(e.target.files[0]);
         }
