@@ -154,12 +154,21 @@
         let lastDetectedCode = null, detectionCount = 0;
         const CONFIRM_THRESHOLD = 3;
 
-        window.onload = () => { 
-            renderCalendar(); 
-            renderList(); 
-            checkUrgentItems(); 
-        };
-
+     // 1. 確保 window.onload 嘅執行順序正確
+window.onload = () => {
+    try {
+        // 先渲染介面，確保使用者見到嘢先
+        if (typeof renderCalendar === "function") renderCalendar();
+        if (typeof renderList === "function") renderList();
+        
+        // 延遲 1.5 秒先檢查過期嘢，廢事同渲染爭資源
+        setTimeout(() => {
+            checkUrgentItems();
+        }, 1500);
+    } catch (e) {
+        console.error("App Initialization Error:", e);
+    }
+};
         // --- 月曆邏輯 ---
         function renderCalendar() {
             const grid = document.getElementById('calendarDays');
@@ -334,7 +343,33 @@
         }
 
         function closeModal() { Quagga.stop(); document.getElementById('modal').classList.add('hidden'); }
-    
+function checkUrgentItems() {
+    // 防錯：如果 foods 未定義或者唔係 Array 就即刻退回
+    if (!Array.isArray(foods) || foods.length === 0) return;
+
+    try {
+        const today = new Date();
+        const twoWeeks = new Date();
+        twoWeeks.setDate(today.getDate() + 14);
+
+        // 統一將今日時間設為 00:00:00 方便比較
+        const todayZero = new Date();
+        todayZero.setHours(0, 0, 0, 0);
+
+        const urgentItems = foods.filter(item => {
+            if (!item.expiry) return false;
+            const expDate = new Date(item.expiry);
+            // 只比較 14 日內且未過期（或今日過期）
+            return expDate <= twoWeeks && expDate >= todayZero;
+        });
+
+        if (urgentItems.length > 0) {
+            alert(`🌿 提醒你：你有 ${urgentItems.length} 項食品快要過期喇（14日內）！\n\n快啲去清咗佢，唔好嘥嘢呀。`);
+        }
+    } catch (err) {
+        console.error("Check Urgent Items Failed:", err);
+    }
+}    
        // --- 備份與匯入功能 (核心修復版) ---
 
 function exportData() {
