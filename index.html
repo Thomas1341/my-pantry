@@ -153,7 +153,15 @@
         let selectedDateFilter = null;
         let lastDetectedCode = null, detectionCount = 0;
         const CONFIRM_THRESHOLD = 3;
-
+        
+// --- 修正時區：獲取香港/本地當天日期 (YYYY-MM-DD) ---
+function getLocalDateString() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60000; // 偏移毫秒
+    const localISOTime = (new Date(now - offset)).toISOString().slice(0, 10);
+    return localISOTime;
+}
+        
      // 1. 確保 window.onload 嘅執行順序正確
 window.onload = () => {
     try {
