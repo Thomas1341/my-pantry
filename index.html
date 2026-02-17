@@ -334,7 +334,28 @@
         }
 
         function closeModal() { Quagga.stop(); document.getElementById('modal').classList.add('hidden'); }
-        function checkUrgentItems() { /* 保持原本邏輯 */ }
+        function checkUrgentItems() {
+    const today = new Date();
+    // 設定「緊急」嘅範圍：14 日內
+    const twoWeeks = new Date();
+    twoWeeks.setDate(today.getDate() + 14);
+
+    // 過濾出 14 日內過期，而且仲未過期（或者今日過期）嘅嘢
+    const urgentItems = foods.filter(item => {
+        const expDate = new Date(item.expiry);
+        // 清除時間部分，只比日期
+        const todayZero = new Date();
+        todayZero.setHours(0,0,0,0);
+        return expDate <= twoWeeks && expDate >= todayZero;
+    });
+
+    if (urgentItems.length > 0) {
+        // 加少少 Delay，等個畫面 Load 完先彈出嚟，感覺順啲
+        setTimeout(() => {
+            alert(`🌿 提醒你：你有 ${urgentItems.length} 項食品快要過期喇（14日內）！\n\n快啲去清咗佢，唔好嘥嘢呀。`);
+        }, 1000); 
+    }
+}}
        // --- 備份與匯入功能 (核心修復版) ---
 
 function exportData() {
