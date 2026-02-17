@@ -336,13 +336,13 @@
         function closeModal() { Quagga.stop(); document.getElementById('modal').classList.add('hidden'); }
     
     function checkUrgentItems() {
-    const today = new Date();
-    // 設定「緊急」嘅範圍：14 日內
-    const twoWeeks = new Date();
-    twoWeeks.setDate(today.getDate() + 14);
+        const today = new Date();
+        // 設定「緊急」嘅範圍：14 日內
+        const twoWeeks = new Date();
+        twoWeeks.setDate(today.getDate() + 14);
 
-    // 過濾出 14 日內過期，而且仲未過期（或者今日過期）嘅嘢
-    const urgentItems = foods.filter(item => {
+        // 過濾出 14 日內過期，而且仲未過期（或者今日過期）嘅嘢
+        const urgentItems = foods.filter(item => {
         const expDate = new Date(item.expiry);
         // 清除時間部分，只比日期
         const todayZero = new Date();
